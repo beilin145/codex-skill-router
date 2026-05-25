@@ -116,6 +116,7 @@ class CandidateReport:
     decision: str
     rationale: list[str]
     decision_record: dict[str, object]
+    capability_profile: dict[str, object]
     install_plan: dict[str, object]
     router_suggestion: dict[str, object]
 
@@ -230,6 +231,7 @@ def parse_args() -> argparse.Namespace:
     source.add_argument("--local", help="Local repository or skill directory.")
     parser.add_argument("--ref", default="main", help="Git ref for --repo. Default: main.")
     parser.add_argument("--path", action="append", default=[], help="Skill path inside the repo. Can be repeated.")
+    parser.add_argument("--installed-json", help="Optional installed-skill inventory JSON for deterministic comparison tests.")
     parser.add_argument("--out", help="Write Markdown report to this path.")
     parser.add_argument("--json-out", help="Write JSON report to this path.")
     parser.add_argument("--router-out", help="Write only router patch suggestions to this path.")
@@ -243,7 +245,7 @@ def main() -> int:
 
     try:
         source_label, root, repo, ref, paths, temp_root = resolve_source(args)
-        installed = load_installed_skills()
+        installed = load_installed_skills(Path(args.installed_json)) if args.installed_json else load_installed_skills()
         reports = scan_candidates(source_label, root, paths, installed, repo, ref)
         payload = {
             "source": source_label,
@@ -426,6 +428,7 @@ def scan_skill(
     except ValueError:
         rel_path = str(skill_dir)
 
+    capability_profile = build_capability_profile(name, description, skill_text, file_findings, risk_matches, duplicate_matches)
     decision_record = build_decision_record(decision, rationale, file_findings, risk_matches, duplicate_matches)
     install_plan = build_install_plan(repo, ref, rel_path, name, decision)
     router_suggestion = build_router_suggestion(name, description, decision, duplicate_matches)
@@ -445,6 +448,7 @@ def scan_skill(
         decision=decision,
         rationale=rationale,
         decision_record=decision_record,
+        capability_profile=capability_profile,
         install_plan=install_plan,
         router_suggestion=router_suggestion,
     )
@@ -563,6 +567,7 @@ def is_defensive_context(rel_path: str, text: str, line_no: int, line: str) -> b
         "Attempts to override higher-priority instructions.",
         "Pipes remote content into a shell.",
         "Contains destructive shell command patterns.",
+        '"network": ["curl", "fetch", "requests", "urllib", "httpx", "axios"]',
     )
     return any(marker in line for marker in defensive_markers)
 
@@ -592,7 +597,9 @@ def read_text_lossy(path: Path, limit: int | None = None) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def load_installed_skills() -> list[InstalledSkill]:
+def load_installed_skills(inventory_path: Path | None = None) -> list[InstalledSkill]:
+    if inventory_path is not None:
+        return load_installed_from_json(inventory_path)
     roots = default_skill_roots()
     seen: set[Path] = set()
     installed: list[InstalledSkill] = []
@@ -611,6 +618,28 @@ def load_installed_skills() -> list[InstalledSkill]:
             name = frontmatter.get("name", parent.name).strip() or parent.name
             description = frontmatter.get("description", "").strip()
             installed.append(InstalledSkill(name=name, description=description, path=str(parent)))
+    return installed
+
+
+def load_installed_from_json(path: Path) -> list[InstalledSkill]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    raw_items = data.get("skills", data) if isinstance(data, dict) else data
+    if not isinstance(raw_items, list):
+        raise IntakeError("installed inventory JSON must be a list or contain a skills list")
+    installed = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        installed.append(
+            InstalledSkill(
+                name=name,
+                description=str(item.get("description", "")).strip(),
+                path=str(item.get("path", "")),
+            )
+        )
     return installed
 
 
@@ -782,6 +811,98 @@ def build_install_plan(
     }
 
 
+def build_capability_profile(
+    name: str,
+    description: str,
+    skill_text: str,
+    file_findings: list[FileFinding],
+    risk_matches: list[RiskMatch],
+    duplicate_matches: list[dict[str, object]],
+) -> dict[str, object]:
+    corpus = f"{name}\n{description}\n{skill_text}".lower()
+    domains = match_keywords(
+        corpus,
+        {
+            "presentation": ["ppt", "presentation", "slides", "deck", "canva", "powerpoint"],
+            "browser_qa": ["browser", "localhost", "screenshot", "playwright", "qa", "viewport", "gstack"],
+            "github": ["github", "pull request", "pr", "issue", "ci", "actions"],
+            "figma": ["figma", "figjam", "use_figma"],
+            "coding": ["debug", "bug", "test", "implementation", "refactor", "code"],
+            "hyperframes": ["hyperframes", "video", "animation", "three", "gsap", "lottie"],
+            "documents": ["pdf", "docx", "document", "spreadsheet", "xlsx", "csv"],
+            "data_backend": ["api", "database", "postgres", "redis", "fastapi", "sqlalchemy"],
+            "security": ["security", "threat", "secret", "credential", "audit"],
+        },
+    )
+    inputs = match_keywords(
+        corpus,
+        {
+            "github_repo": ["github.com", "--repo", "repository"],
+            "local_files": ["local", "file", "path", "workspace"],
+            "url": ["url", "website", "web page", "http"],
+            "browser": ["browser", "localhost", "screenshot"],
+            "artifact": ["pdf", "docx", "xlsx", "pptx", "svg", "html"],
+            "design": ["figma", "canva", "design"],
+        },
+    )
+    outputs = match_keywords(
+        corpus,
+        {
+            "code_change": ["edit", "implement", "patch", "refactor"],
+            "artifact": ["create", "generate", "export", "render"],
+            "report": ["report", "review", "audit", "analysis"],
+            "automation": ["script", "command", "cli", "workflow"],
+            "router_rule": ["route", "router", "skill"],
+        },
+    )
+    tool_dependencies = match_keywords(
+        corpus,
+        {
+            "network": ["curl", "fetch", "requests", "urllib", "httpx", "axios"],
+            "package_manager": ["npm install", "npx", "pip install", "uvx", "brew install"],
+            "browser": ["playwright", "browser", "screenshot"],
+            "git": ["git ", "github", "pull request", "commit"],
+            "mcp_or_plugin": ["mcp", "plugin", "use_figma"],
+        },
+    )
+    safety_shape = sorted({item.category for item in risk_matches} | {item.category for item in file_findings})
+    overlap = [
+        {
+            "name": item.get("name"),
+            "kind": item.get("kind"),
+            "score": item.get("score"),
+        }
+        for item in duplicate_matches[:5]
+    ]
+    return {
+        "domains": domains,
+        "inputs": inputs,
+        "outputs": outputs,
+        "tool_dependencies": tool_dependencies,
+        "safety_shape": safety_shape,
+        "overlap": overlap,
+        "coverage_summary": build_coverage_summary(overlap),
+    }
+
+
+def match_keywords(text: str, groups: dict[str, list[str]]) -> list[str]:
+    matches = []
+    for label, keywords in groups.items():
+        if any(keyword in text for keyword in keywords):
+            matches.append(label)
+    return matches
+
+
+def build_coverage_summary(overlap: list[dict[str, object]]) -> str:
+    if not overlap:
+        return "No installed skill overlap detected from name/description similarity."
+    same_name = [item for item in overlap if item.get("kind") == "same-name"]
+    if same_name:
+        return "Same-name installed skill exists; treat as update or duplicate until manually compared."
+    strongest = overlap[0]
+    return f"Closest installed overlap: `{strongest.get('name')}` at score `{strongest.get('score')}`."
+
+
 def build_router_suggestion(
     name: str,
     description: str,
@@ -845,6 +966,7 @@ def candidate_to_dict(report: CandidateReport) -> dict[str, object]:
         "decision": report.decision,
         "rationale": report.rationale,
         "decision_record": report.decision_record,
+        "capability_profile": report.capability_profile,
         "install_plan": report.install_plan,
         "router_suggestion": report.router_suggestion,
     }
@@ -892,6 +1014,15 @@ def render_report_detail(report: CandidateReport) -> list[str]:
     lines.append("- Rationale:")
     for item in report.rationale:
         lines.append(f"  - {item}")
+    lines.append("")
+    lines.append("### Capability Profile")
+    lines.append("")
+    profile = report.capability_profile
+    for label in ["domains", "inputs", "outputs", "tool_dependencies", "safety_shape"]:
+        values = profile.get(label) if isinstance(profile.get(label), list) else []
+        rendered = ", ".join(f"`{value}`" for value in values) if values else "(none detected)"
+        lines.append(f"- {label.replace('_', ' ').title()}: {rendered}")
+    lines.append(f"- Coverage: {profile.get('coverage_summary', '')}")
     lines.append("")
 
     if report.file_findings:

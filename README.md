@@ -4,7 +4,7 @@ Choose the right Codex skill, avoid duplicate skill sprawl, and audit third-part
 
 Codex skill lists can grow quickly. When several skills match one request, default semantic matching may pick a broad, duplicate, or weaker skill. This project adds a router skill that Codex reads first, so skill selection follows explicit rules instead of guesswork.
 
-It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list. Intake reports produce draft install commands and router patch suggestions, V0.3 can apply accepted decisions into the router's managed section, and V0.4 records durable decisions in a local registry.
+It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list. Intake reports produce draft install commands and router patch suggestions, V0.3 can apply accepted decisions into the router's managed section, V0.4 records durable decisions in a local registry, and V0.5 adds a standard intake pipeline plus capability profiles.
 
 ## Why Use It
 
@@ -15,6 +15,8 @@ It also includes `skill-intake`, a lightweight static intake workflow for evalua
 - Turn a proposed GitHub skill into an install/defer/reject decision, a draft install command, and a router entry suggestion.
 - Apply accepted intake decisions to the router without touching hand-authored routing policy.
 - Keep a registry of accepted, explicit-only, duplicate, and rejected skills.
+- Compare skills by capability dimensions, not only name/description similarity.
+- Use a repeatable scan -> registry -> router -> install pipeline.
 - Keep public routing defaults separate from your private local overrides.
 
 ## Quick Start
@@ -153,6 +155,20 @@ python3 skills/skill-intake/scripts/skill_registry.py \
   list
 ```
 
+Run the standard intake workflow:
+
+```bash
+python3 skills/skill-intake/scripts/intake_workflow.py \
+  --url https://github.com/owner/repo/tree/main/skills/foo \
+  --work-dir intake-reports/foo \
+  --registry skill-registry.json \
+  --router skills/_skill-router/SKILL.md \
+  --record-registry \
+  --apply-router
+```
+
+See [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for keep/demote/reject standards and curated tiers.
+
 ## Project Layout
 
 ```text
@@ -167,10 +183,12 @@ skills/
 docs/
   ROUTING.md
   SECURITY.md
+  GOVERNANCE.md
   INTAKE.md
   PUBLISHING.md
 examples/
   intake-report.md
+  workflow-report.md
 scripts/
   install.sh
 ```

@@ -62,6 +62,18 @@ python3 skills/skill-intake/scripts/intake_github_skill.py \
   --router-out intake-reports/foo.router.md
 ```
 
+Run the full standard workflow:
+
+```bash
+python3 skills/skill-intake/scripts/intake_workflow.py \
+  --url https://github.com/owner/repo/tree/main/skills/foo \
+  --work-dir intake-reports/foo \
+  --registry skill-registry.json \
+  --router skills/_skill-router/SKILL.md \
+  --record-registry \
+  --apply-router
+```
+
 Preview router managed-section updates:
 
 ```bash
@@ -125,6 +137,18 @@ python3 skills/skill-intake/scripts/skill_registry.py --registry skill-registry.
 ```
 
 By default, the registry path is `$CODEX_HOME/skills/_skill-router/skill-registry.json`.
+
+## V0.5 Standard Pipeline
+
+`intake_workflow.py` runs the normal intake chain:
+
+```text
+scan -> report files -> registry record -> router managed-section update -> optional install
+```
+
+Use `--install-approved` only after you approve installation.
+
+V0.5 reports also include `capability_profile`, which captures domains, inputs, outputs, tool dependencies, safety shape, and installed overlap. Use it for fine-grained duplicate and strengths/weaknesses comparison.
 
 ## After Install
 
