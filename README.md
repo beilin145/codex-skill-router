@@ -27,13 +27,32 @@ global Codex instruction -> read _skill-router first -> route to the best busine
 
 ## Install
 
-Clone or download this repository, then copy the skills into your Codex skills directory:
+Clone this repository, then install the skills into your Codex skills directory:
+
+```bash
+git clone https://github.com/beilin145/codex-skill-router.git
+cd codex-skill-router
+./scripts/install.sh
+```
+
+If you already cloned the repository and are inside it, just run:
 
 ```bash
 ./scripts/install.sh
 ```
 
 Restart Codex after installing new skills so the skill list refreshes.
+
+## Update
+
+Pull the latest version and reinstall:
+
+```bash
+git pull
+./scripts/install.sh
+```
+
+Restart Codex after updating installed skills.
 
 ## Make Router-First Behavior Sticky
 
@@ -100,4 +119,4 @@ See [docs/SECURITY.md](docs/SECURITY.md) for the full checklist.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Released under the MIT License. See [LICENSE](LICENSE).

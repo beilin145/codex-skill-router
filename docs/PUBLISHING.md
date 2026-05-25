@@ -21,6 +21,7 @@ Use this before pushing the project to a public GitHub repository.
 ```bash
 find . -name SKILL.md -print
 python3 -B -c 'import ast, pathlib; ast.parse(pathlib.Path("skills/skill-intake/scripts/intake_github_skill.py").read_text())'
+tmp="$(mktemp -d)"; CODEX_HOME="$tmp" ./scripts/install.sh; test -f "$tmp/skills/_skill-router/SKILL.md"; test -f "$tmp/skills/skill-intake/SKILL.md"; rm -rf "$tmp"
 python3 -B skills/skill-intake/scripts/intake_github_skill.py --local . --path skills/skill-intake
 python3 -B skills/skill-intake/scripts/intake_github_skill.py --local . --path skills/_skill-router
 python3 scripts/release_check.py
@@ -30,6 +31,7 @@ Expected:
 
 - `skill-intake` reports no safety findings for itself.
 - `_skill-router` may report a same-name duplicate if already installed locally; that is expected.
+- The temporary `CODEX_HOME` install creates both `_skill-router` and `skill-intake`.
 - No private paths or secrets are found in tracked public files.
 
 ## Do Not Publish By Accident

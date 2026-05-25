@@ -27,6 +27,23 @@ CHECKS = [
     ("conflict_marker", re.compile(r"^(<<<<<<<|=======|>>>>>>>)$")),
 ]
 
+REQUIRED_FILES = [
+    "README.md",
+    "LICENSE",
+    ".gitignore",
+    "docs/INTAKE.md",
+    "docs/PUBLISHING.md",
+    "docs/ROUTING.md",
+    "docs/SECURITY.md",
+    "scripts/install.sh",
+    "scripts/release_check.py",
+    "skills/_skill-router/SKILL.md",
+    "skills/_skill-router/agents/openai.yaml",
+    "skills/skill-intake/SKILL.md",
+    "skills/skill-intake/agents/openai.yaml",
+    "skills/skill-intake/scripts/intake_github_skill.py",
+]
+
 ALLOWLIST = {
     ("skills/skill-intake/scripts/intake_github_skill.py", "private_path"),
     ("scripts/release_check.py", "private_path"),
@@ -38,6 +55,10 @@ ALLOWLIST = {
 
 def main() -> int:
     findings = []
+    for rel in REQUIRED_FILES:
+        if not (ROOT / rel).is_file():
+            findings.append(("missing_required_file", rel, 0, "required release file is missing"))
+
     for path in iter_files(ROOT):
         rel = path.relative_to(ROOT).as_posix()
         text = path.read_text(encoding="utf-8", errors="replace")

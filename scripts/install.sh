@@ -12,12 +12,15 @@ cp -R "$REPO_DIR/skills/skill-intake/." "$SKILLS_DIR/skill-intake/"
 
 cat <<'MSG'
 Installed:
-- ~/.codex/skills/_skill-router
-- ~/.codex/skills/skill-intake
+MSG
+printf -- '- %s\n' "$SKILLS_DIR/_skill-router"
+printf -- '- %s\n' "$SKILLS_DIR/skill-intake"
+cat <<'MSG'
 
 Restart Codex to pick up new skills.
 
 For best routing, add a global/developer instruction equivalent to:
 At the start of every turn, before selecting, reading, invoking, installing,
-editing, or comparing any skill, read ~/.codex/skills/_skill-router/SKILL.md.
+editing, or comparing any skill, read the installed _skill-router/SKILL.md
+path shown above.
 MSG
