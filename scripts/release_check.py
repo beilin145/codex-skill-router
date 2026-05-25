@@ -43,6 +43,7 @@ REQUIRED_FILES = [
     "skills/skill-intake/agents/openai.yaml",
     "skills/skill-intake/scripts/apply_intake_decision.py",
     "skills/skill-intake/scripts/intake_github_skill.py",
+    "skills/skill-intake/scripts/skill_registry.py",
 ]
 
 ALLOWLIST = {

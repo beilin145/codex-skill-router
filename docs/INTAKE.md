@@ -14,9 +14,10 @@ Should this GitHub skill be installed, routed, demoted, or rejected?
 4. Review the Markdown or JSON report.
 5. Use the generated install plan and router patch suggestion as drafts.
 6. Apply accepted routing decisions to `_skill-router` with the managed-section updater.
-7. Ask the user before installing third-party skills unless the repo is already trusted by local policy.
-8. Install approved skills with Codex's system `skill-installer`.
-9. Tell the user to restart Codex after installation or router updates.
+7. Record durable decisions in the local registry, especially duplicate and rejected candidates.
+8. Ask the user before installing third-party skills unless the repo is already trusted by local policy.
+9. Install approved skills with Codex's system `skill-installer`.
+10. Tell the user to restart Codex after installation or router updates.
 
 ## Scanner Examples
 
@@ -74,6 +75,7 @@ Apply accepted routing decisions:
 python3 skills/skill-intake/scripts/apply_intake_decision.py \
   --intake-json intake-reports/foo.intake.json \
   --router skills/_skill-router/SKILL.md \
+  --registry skill-registry.json \
   --apply
 ```
 
@@ -100,6 +102,29 @@ It groups candidates into:
 - `Manual Review`
 
 It does not install skills, execute candidate code, or rewrite the fixed hand-authored router sections.
+
+## V0.4 Registry
+
+`skill_registry.py` stores durable intake decisions as JSON. Use it to remember which skills were accepted, explicit-only, duplicate, or rejected.
+
+Record decisions:
+
+```bash
+python3 skills/skill-intake/scripts/skill_registry.py \
+  --registry skill-registry.json \
+  record \
+  --intake-json intake-reports/foo.intake.json
+```
+
+List or inspect decisions:
+
+```bash
+python3 skills/skill-intake/scripts/skill_registry.py --registry skill-registry.json list
+python3 skills/skill-intake/scripts/skill_registry.py --registry skill-registry.json list --decision reject
+python3 skills/skill-intake/scripts/skill_registry.py --registry skill-registry.json show foo
+```
+
+By default, the registry path is `$CODEX_HOME/skills/_skill-router/skill-registry.json`.
 
 ## After Install
 

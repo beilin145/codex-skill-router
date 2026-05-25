@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -27,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--intake-json", required=True, help="JSON report produced by intake_github_skill.py.")
     parser.add_argument("--router", help="Router SKILL.md path. Defaults to $CODEX_HOME/skills/_skill-router/SKILL.md.")
     parser.add_argument("--candidate", action="append", default=[], help="Candidate skill name to apply. Can repeat.")
+    parser.add_argument("--registry", help="Also record selected decisions in this registry JSON path.")
     parser.add_argument("--apply", action="store_true", help="Write the router file. Without this, print the proposed managed section.")
     return parser.parse_args()
 
@@ -45,6 +47,8 @@ def main() -> int:
             if not router_text:
                 raise ApplyError(f"router file not found: {router_path}")
             updated = replace_managed_section(router_text, managed_section)
+            if args.registry:
+                record_registry(args.intake_json, args.registry, args.candidate)
             router_path.write_text(updated, encoding="utf-8")
             print(f"updated router: {router_path}")
         else:
@@ -53,6 +57,17 @@ def main() -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0
+
+
+def record_registry(intake_json: str, registry: str, candidates: list[str]) -> None:
+    script = Path(__file__).with_name("skill_registry.py")
+    command = [sys.executable, str(script), "--registry", registry, "record", "--intake-json", intake_json]
+    for candidate in candidates:
+        command.extend(["--candidate", candidate])
+    result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        raise ApplyError(result.stderr.strip() or "failed to record registry")
+    print(result.stdout.strip())
 
 
 def default_router_path() -> Path:

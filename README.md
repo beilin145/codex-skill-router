@@ -4,7 +4,7 @@ Choose the right Codex skill, avoid duplicate skill sprawl, and audit third-part
 
 Codex skill lists can grow quickly. When several skills match one request, default semantic matching may pick a broad, duplicate, or weaker skill. This project adds a router skill that Codex reads first, so skill selection follows explicit rules instead of guesswork.
 
-It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list. Intake reports produce draft install commands and router patch suggestions, and V0.3 can apply accepted decisions into the router's managed section.
+It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list. Intake reports produce draft install commands and router patch suggestions, V0.3 can apply accepted decisions into the router's managed section, and V0.4 records durable decisions in a local registry.
 
 ## Why Use It
 
@@ -14,6 +14,7 @@ It also includes `skill-intake`, a lightweight static intake workflow for evalua
 - Audit third-party `SKILL.md` folders for prompt-injection and local-execution risks before installing.
 - Turn a proposed GitHub skill into an install/defer/reject decision, a draft install command, and a router entry suggestion.
 - Apply accepted intake decisions to the router without touching hand-authored routing policy.
+- Keep a registry of accepted, explicit-only, duplicate, and rejected skills.
 - Keep public routing defaults separate from your private local overrides.
 
 ## Quick Start
@@ -140,7 +141,16 @@ Apply an accepted decision to the router's managed section:
 python3 skills/skill-intake/scripts/apply_intake_decision.py \
   --intake-json intake-reports/foo.intake.json \
   --router skills/_skill-router/SKILL.md \
+  --registry skill-registry.json \
   --apply
+```
+
+List registry decisions:
+
+```bash
+python3 skills/skill-intake/scripts/skill_registry.py \
+  --registry skill-registry.json \
+  list
 ```
 
 ## Project Layout
