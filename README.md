@@ -1,10 +1,47 @@
 # Codex Skill Router
 
-Opinionated routing rules for Codex skills.
+Choose the right Codex skill, avoid duplicate skill sprawl, and audit third-party skills before installing them.
 
-This project adds a small meta-skill that Codex reads before choosing other skills. It turns "several skills match this request" into an explicit routing decision: which skill wins by default, which skills are platform-specific, which skills are duplicate fallbacks, and which third-party skills need a safety review before use.
+Codex skill lists can grow quickly. When several skills match one request, default semantic matching may pick a broad, duplicate, or weaker skill. This project adds a router skill that Codex reads first, so skill selection follows explicit rules instead of guesswork.
 
-It also includes a `skill-intake` workflow for evaluating GitHub-hosted skills before installing them.
+It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list.
+
+## Why Use It
+
+- Prefer a known best skill when several skills match the same request.
+- Keep platform-specific routes explicit, such as Canva, Figma, GitHub, Browser, gstack, HyperFrames, PDFs, docs, and sheets.
+- Demote duplicate or weaker skills without deleting them.
+- Audit third-party `SKILL.md` folders for prompt-injection and local-execution risks before installing.
+- Keep public routing defaults separate from your private local overrides.
+
+## Quick Start
+
+```bash
+git clone https://github.com/beilin145/codex-skill-router.git
+cd codex-skill-router
+./scripts/install.sh
+```
+
+Then restart Codex.
+
+For best results, add a global/developer instruction equivalent to:
+
+```text
+At the start of every turn, before selecting, reading, invoking, installing, editing, or comparing any skill, read ~/.codex/skills/_skill-router/SKILL.md and follow its routing table.
+```
+
+## Example
+
+```text
+User: 帮我做一个汇报 PPT
+Router: use ppt-master by default
+
+User: 用 Canva 做一版 deck
+Router: use canva-branded-presentation because Canva was explicit
+
+User: 评估 https://github.com/owner/repo/tree/main/skills/foo
+Router: use skill-intake before installing or trusting it
+```
 
 ## What This Is
 
@@ -25,7 +62,7 @@ The reliable pattern is:
 global Codex instruction -> read _skill-router first -> route to the best business skill
 ```
 
-## Install
+## Install Details
 
 Clone this repository, then install the skills into your Codex skills directory:
 
@@ -64,7 +101,7 @@ At the start of every turn, before selecting, reading, invoking, installing, edi
 
 The `_skill-router` description is also written to trigger broadly, but an explicit global instruction is the stronger setup.
 
-## Use
+## Usage Notes
 
 Ask normal questions:
 
