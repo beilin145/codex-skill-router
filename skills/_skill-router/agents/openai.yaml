@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Router"
+  short_description: "Route Codex skill conflicts safely"
+  default_prompt: "Use $skill-router to decide which Codex skill should handle this request."
