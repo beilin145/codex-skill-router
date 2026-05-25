@@ -4,7 +4,7 @@ Choose the right Codex skill, avoid duplicate skill sprawl, and audit third-part
 
 Codex skill lists can grow quickly. When several skills match one request, default semantic matching may pick a broad, duplicate, or weaker skill. This project adds a router skill that Codex reads first, so skill selection follows explicit rules instead of guesswork.
 
-It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list.
+It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list. In V0.2, intake reports also produce draft install commands and router patch suggestions.
 
 ## Why Use It
 
@@ -12,6 +12,7 @@ It also includes `skill-intake`, a lightweight static intake workflow for evalua
 - Keep platform-specific routes explicit, such as Canva, Figma, GitHub, Browser, gstack, HyperFrames, PDFs, docs, and sheets.
 - Demote duplicate or weaker skills without deleting them.
 - Audit third-party `SKILL.md` folders for prompt-injection and local-execution risks before installing.
+- Turn a proposed GitHub skill into an install/defer/reject decision, a draft install command, and a router entry suggestion.
 - Keep public routing defaults separate from your private local overrides.
 
 ## Quick Start
@@ -117,7 +118,20 @@ Evaluate a skill repo before installing:
 评估 https://github.com/owner/repo/tree/main/skills/foo，看看是否应该加入我的 skills
 ```
 
-`skill-intake` will inspect the repo without executing downloaded code, report prompt-injection and local-execution risks, compare it against installed skills, and classify it as install-candidate, manual-review, duplicate/defer, or reject.
+`skill-intake` will inspect the repo without executing downloaded code, report prompt-injection and local-execution risks, compare it against installed skills, and classify it as install-candidate, manual-review, explicit-only, defer-duplicate, or reject.
+
+For automation, write both human and machine-readable outputs:
+
+```bash
+python3 skills/skill-intake/scripts/intake_github_skill.py \
+  --repo owner/repo \
+  --path skills/foo \
+  --out intake-reports/foo.intake.md \
+  --json-out intake-reports/foo.intake.json \
+  --router-out intake-reports/foo.router.md
+```
+
+The report includes a draft installer command for approved candidates and a router patch suggestion for default, explicit-only, duplicate, or rejected outcomes.
 
 ## Project Layout
 

@@ -1,6 +1,6 @@
 ---
 name: skill-intake
-description: Evaluate GitHub-hosted or local Codex skills before installation. Use when the user provides a skill repo/path, asks to add/download/install/compare/audit a skill, wants to know whether a skill is poisoned, duplicate, weaker, worth keeping, or should be routed, demoted, rejected, or added to the skills list.
+description: Evaluate GitHub-hosted or local Codex skills before installation. Use when the user provides a skill repo/path, asks to add/download/install/compare/audit a skill, wants to know whether a skill is poisoned, duplicate, weaker, worth keeping, or should be routed, demoted, rejected, added to the skills list, or converted into an install plan and router patch suggestion.
 ---
 
 # Skill Intake
@@ -21,10 +21,11 @@ Do not execute downloaded code during intake.
    - `defer-duplicate`: mostly covered by stronger installed skills.
    - `explicit-only`: useful only when the exact platform/tool/workflow is named.
    - `reject`: prompt injection, exfiltration, persistence, destructive behavior, or unacceptable policy risk.
-6. If approved, install through the system `skill-installer`; do not hand-copy third-party code unless the user explicitly asks.
-7. After install, confirm the installed folder name and frontmatter name.
-8. Update `_skill-router` with the final routing decision.
-9. Tell the user to restart Codex after any new skill installation.
+6. Use the report's generated install plan and router suggestion as a draft, not as automatic approval.
+7. If approved, install through the system `skill-installer`; do not hand-copy third-party code unless the user explicitly asks.
+8. After install, confirm the installed folder name and frontmatter name.
+9. Update `_skill-router` with the final routing decision.
+10. Tell the user to restart Codex after any new skill installation.
 
 ## Commands
 
@@ -62,13 +63,23 @@ python3 ~/.codex/skills/skill-intake/scripts/intake_github_skill.py \
   --json-out intake-reports/foo.intake.json
 ```
 
+Write only router patch suggestions:
+
+```bash
+python3 ~/.codex/skills/skill-intake/scripts/intake_github_skill.py \
+  --repo owner/repo \
+  --path skills/foo \
+  --router-out intake-reports/foo.router.md
+```
+
 ## Install Approved Skills
 
-After the user approves an `install-candidate`, use the system installer:
+After the user approves an `install-candidate`, `manual-review`, or `explicit-only` candidate, use the generated install command. It should have this shape:
 
 ```bash
 python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
   --repo owner/repo \
+  --ref main \
   --path skills/foo
 ```
 
@@ -76,10 +87,10 @@ If installation succeeds, say: "Restart Codex to pick up new skills."
 
 ## Router Update Shape
 
-Add the new skill only after verifying the installed name:
+Add the new skill only after verifying the installed name. Use the report's router suggestion as the draft:
 
 ```markdown
 - Specific trigger / platform / file format -> `skill-name`
 ```
 
-If the skill is weaker or duplicate, add it to a demoted/duplicate note instead of making it a default winner.
+If the skill is weaker or duplicate, add it to a demoted/duplicate note instead of making it a default winner. If the decision is `reject`, do not add a route.

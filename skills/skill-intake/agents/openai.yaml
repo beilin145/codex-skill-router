@@ -1,4 +1,4 @@
 interface:
   display_name: "Skill Intake"
-  short_description: "Audit and classify new Codex skills"
-  default_prompt: "Use $skill-intake to evaluate this GitHub skill before installing it."
+  short_description: "Audit, classify, and route new Codex skills"
+  default_prompt: "Use $skill-intake to evaluate this GitHub skill, produce an install plan, and draft the router entry."

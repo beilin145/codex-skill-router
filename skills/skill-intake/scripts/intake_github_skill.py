@@ -9,16 +9,15 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import fnmatch
 import hashlib
 import json
 import os
 import re
 import shutil
+import shlex
 import stat
 import sys
 import tempfile
-import textwrap
 import urllib.parse
 import urllib.request
 import zipfile
@@ -116,6 +115,9 @@ class CandidateReport:
     duplicate_matches: list[dict[str, object]]
     decision: str
     rationale: list[str]
+    decision_record: dict[str, object]
+    install_plan: dict[str, object]
+    router_suggestion: dict[str, object]
 
 
 RISK_RULES = [
@@ -230,6 +232,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path", action="append", default=[], help="Skill path inside the repo. Can be repeated.")
     parser.add_argument("--out", help="Write Markdown report to this path.")
     parser.add_argument("--json-out", help="Write JSON report to this path.")
+    parser.add_argument("--router-out", help="Write only router patch suggestions to this path.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
     return parser.parse_args()
 
@@ -241,7 +244,7 @@ def main() -> int:
     try:
         source_label, root, repo, ref, paths, temp_root = resolve_source(args)
         installed = load_installed_skills()
-        reports = scan_candidates(source_label, root, paths, installed)
+        reports = scan_candidates(source_label, root, paths, installed, repo, ref)
         payload = {
             "source": source_label,
             "repo": repo,
@@ -256,6 +259,8 @@ def main() -> int:
             write_text(Path(args.out), markdown)
         if args.json_out:
             write_text(Path(args.json_out), json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+        if args.router_out:
+            write_text(Path(args.router_out), render_router_patch(payload, reports))
 
         if args.json:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -356,12 +361,14 @@ def scan_candidates(
     root: Path,
     paths: list[str],
     installed: list[InstalledSkill],
+    repo: str | None,
+    ref: str | None,
 ) -> list[CandidateReport]:
     skill_dirs = find_candidate_dirs(root, paths)
     if not skill_dirs:
         raise IntakeError("no SKILL.md files found for the requested source/path")
 
-    return [scan_skill(source_label, root, skill_dir, installed) for skill_dir in skill_dirs]
+    return [scan_skill(source_label, root, skill_dir, installed, repo, ref) for skill_dir in skill_dirs]
 
 
 def find_candidate_dirs(root: Path, paths: list[str]) -> list[Path]:
@@ -394,7 +401,14 @@ def should_skip(path: Path) -> bool:
     return any(part in IGNORE_DIRS for part in path.parts)
 
 
-def scan_skill(source_label: str, root: Path, skill_dir: Path, installed: list[InstalledSkill]) -> CandidateReport:
+def scan_skill(
+    source_label: str,
+    root: Path,
+    skill_dir: Path,
+    installed: list[InstalledSkill],
+    repo: str | None,
+    ref: str | None,
+) -> CandidateReport:
     skill_md = skill_dir / "SKILL.md"
     skill_text = read_text_lossy(skill_md)
     frontmatter = parse_frontmatter(skill_text)
@@ -408,9 +422,13 @@ def scan_skill(source_label: str, root: Path, skill_dir: Path, installed: list[I
     decision, rationale = decide(frontmatter, file_findings, risk_matches, duplicate_matches)
 
     try:
-        rel_path = str(skill_dir.relative_to(root))
+        rel_path = str(skill_dir.resolve().relative_to(root.resolve()))
     except ValueError:
         rel_path = str(skill_dir)
+
+    decision_record = build_decision_record(decision, rationale, file_findings, risk_matches, duplicate_matches)
+    install_plan = build_install_plan(repo, ref, rel_path, name, decision)
+    router_suggestion = build_router_suggestion(name, description, decision, duplicate_matches)
 
     return CandidateReport(
         source=source_label,
@@ -426,6 +444,9 @@ def scan_skill(source_label: str, root: Path, skill_dir: Path, installed: list[I
         duplicate_matches=duplicate_matches,
         decision=decision,
         rationale=rationale,
+        decision_record=decision_record,
+        install_plan=install_plan,
+        router_suggestion=router_suggestion,
     )
 
 
@@ -686,10 +707,126 @@ def decide(
 
     if duplicate_matches:
         rationale.append("Some overlap with installed skills; route narrowly if installed.")
-        return "manual-review", rationale
+        return "explicit-only", rationale
 
     rationale.append("No obvious blocker found and no strong installed duplicate detected.")
     return "install-candidate", rationale
+
+
+def build_decision_record(
+    decision: str,
+    rationale: list[str],
+    file_findings: list[FileFinding],
+    risk_matches: list[RiskMatch],
+    duplicate_matches: list[dict[str, object]],
+) -> dict[str, object]:
+    blocking = [item for item in file_findings if item.severity == "block"]
+    blocking.extend(item for item in risk_matches if item.severity == "block")
+    warnings = [item for item in file_findings if item.severity == "warn"]
+    warnings.extend(item for item in risk_matches if item.severity == "warn")
+    same_name = [item for item in duplicate_matches if item["kind"] == "same-name"]
+    similar = [item for item in duplicate_matches if item["kind"] == "similar-description"]
+    return {
+        "decision": decision,
+        "rationale": rationale,
+        "counts": {
+            "blocking_findings": len(blocking),
+            "warning_findings": len(warnings),
+            "duplicate_matches": len(duplicate_matches),
+            "same_name_matches": len(same_name),
+            "similar_description_matches": len(similar),
+        },
+        "requires_user_approval": decision in {"install-candidate", "manual-review", "explicit-only"},
+        "safe_to_route_by_default": decision == "install-candidate",
+    }
+
+
+def build_install_plan(
+    repo: str | None,
+    ref: str | None,
+    path: str,
+    name: str,
+    decision: str,
+) -> dict[str, object]:
+    eligible = decision in {"install-candidate", "manual-review", "explicit-only"}
+    if not repo:
+        return {
+            "eligible": False,
+            "reason": "No GitHub repo source was provided; install manually only after review.",
+            "command": None,
+        }
+    if not eligible:
+        return {
+            "eligible": False,
+            "reason": f"Decision `{decision}` should not be installed by default.",
+            "command": None,
+        }
+
+    command_parts = [
+        "python3",
+        "~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py",
+        "--repo",
+        shlex.quote(repo),
+        "--ref",
+        shlex.quote(ref or "main"),
+        "--path",
+        shlex.quote(path),
+    ]
+    if path in {"", "."}:
+        command_parts.extend(["--name", shlex.quote(name)])
+    return {
+        "eligible": True,
+        "reason": "Run only after user approval and after reviewing the report.",
+        "skill_name_after_install": name if path in {"", "."} else Path(path).name,
+        "command": " ".join(command_parts),
+    }
+
+
+def build_router_suggestion(
+    name: str,
+    description: str,
+    decision: str,
+    duplicate_matches: list[dict[str, object]],
+) -> dict[str, object]:
+    trigger = infer_trigger(name, description)
+    entry = f"- {trigger} -> `{name}`"
+    duplicate_names = [str(item["name"]) for item in duplicate_matches[:3]]
+
+    if decision == "install-candidate":
+        section = "Default Winners or the most specific matching domain section"
+        note = "Candidate can become a default route if the human review agrees it is the strongest skill for this trigger."
+        patch = entry
+    elif decision in {"manual-review", "explicit-only"}:
+        section = "Explicit-Only or the matching domain section"
+        note = "Route narrowly only when the exact platform/tool/workflow is named."
+        patch = f"- Explicit {trigger} -> `{name}`"
+    elif decision == "defer-duplicate":
+        section = "Demoted or Duplicate Skills"
+        note = "Keep existing stronger/default skill routes; do not install or route by default unless a clear advantage is found."
+        covered_by = ", ".join(f"`{item}`" for item in duplicate_names) or "an installed skill"
+        patch = f"- `{name}` is covered by {covered_by}; do not route by default."
+    else:
+        section = "Rejected or Quarantined Skills"
+        note = "Do not install or route. Keep only a private audit note if needed."
+        patch = f"- `{name}` rejected during intake; do not install or route."
+
+    return {
+        "section": section,
+        "entry": entry,
+        "patch": patch,
+        "note": note,
+        "overlaps": duplicate_names,
+    }
+
+
+def infer_trigger(name: str, description: str) -> str:
+    words = [word for word in re.split(r"[-_\s]+", name) if word]
+    if words:
+        label = " ".join(words[:4])
+    else:
+        description_words = re.findall(r"[A-Za-z0-9][A-Za-z0-9_-]{2,}", description)
+        label = " ".join(description_words[:4]) if description_words else "Specific reviewed workflow"
+    return f"{label} workflow"
 
 
 def candidate_to_dict(report: CandidateReport) -> dict[str, object]:
@@ -707,6 +844,9 @@ def candidate_to_dict(report: CandidateReport) -> dict[str, object]:
         "duplicate_matches": report.duplicate_matches,
         "decision": report.decision,
         "rationale": report.rationale,
+        "decision_record": report.decision_record,
+        "install_plan": report.install_plan,
+        "router_suggestion": report.router_suggestion,
     }
 
 
@@ -734,6 +874,9 @@ def render_markdown(payload: dict[str, object], reports: list[CandidateReport]) 
 
     for report in reports:
         lines.extend(render_report_detail(report))
+    lines.append("## Router Patch Suggestions")
+    lines.append("")
+    lines.extend(render_router_patch_lines(reports))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -791,23 +934,82 @@ def render_report_detail(report: CandidateReport) -> list[str]:
     lines.append("")
     lines.extend(suggest_next_step(report))
     lines.append("")
+    lines.append("### Install Plan")
+    lines.append("")
+    install_plan = report.install_plan
+    lines.append(f"- Eligible: `{str(install_plan['eligible']).lower()}`")
+    lines.append(f"- Reason: {install_plan['reason']}")
+    if install_plan.get("command"):
+        lines.append("")
+        lines.append("```bash")
+        lines.append(str(install_plan["command"]))
+        lines.append("```")
+    lines.append("")
+    lines.append("### Router Suggestion")
+    lines.append("")
+    router = report.router_suggestion
+    lines.append(f"- Section: `{router['section']}`")
+    lines.append(f"- Note: {router['note']}")
+    lines.append("")
+    lines.append("```markdown")
+    lines.append(str(router["patch"]))
+    lines.append("```")
+    lines.append("")
     return lines
 
 
 def suggest_next_step(report: CandidateReport) -> list[str]:
     if report.decision == "install-candidate":
         return [
-            "Ask the user for approval, install with `skill-installer`, then add a narrow router rule after confirming the installed skill name."
+            "Ask the user for approval, install with the generated command, then add the router rule after confirming the installed skill name."
         ]
     if report.decision == "manual-review":
         return [
             "Review the warnings and any helper files manually. If accepted, install only after user approval and route narrowly."
+        ]
+    if report.decision == "explicit-only":
+        return [
+            "Install only if the exact platform/tool is wanted. Route it as explicit-only, not as a default winner."
         ]
     if report.decision == "defer-duplicate":
         return [
             "Do not install by default. Keep the existing stronger skill as the route unless this candidate proves a clear advantage."
         ]
     return ["Reject or quarantine. Do not route to this skill."]
+
+
+def render_router_patch(payload: dict[str, object], reports: list[CandidateReport]) -> str:
+    lines: list[str] = []
+    lines.append("# Router Patch Suggestions")
+    lines.append("")
+    lines.append(f"- Source: `{payload['source']}`")
+    if payload.get("repo"):
+        lines.append(f"- Repo: `{payload['repo']}`")
+    if payload.get("ref"):
+        lines.append(f"- Ref: `{payload['ref']}`")
+    lines.append("")
+    lines.extend(render_router_patch_lines(reports))
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_router_patch_lines(reports: list[CandidateReport]) -> list[str]:
+    lines: list[str] = []
+    for report in reports:
+        router = report.router_suggestion
+        lines.append(f"### `{report.name}`")
+        lines.append("")
+        lines.append(f"- Decision: `{report.decision}`")
+        lines.append(f"- Section: `{router['section']}`")
+        lines.append(f"- Note: {router['note']}")
+        if router.get("overlaps"):
+            overlaps = ", ".join(f"`{name}`" for name in router["overlaps"])
+            lines.append(f"- Overlaps: {overlaps}")
+        lines.append("")
+        lines.append("```markdown")
+        lines.append(str(router["patch"]))
+        lines.append("```")
+        lines.append("")
+    return lines
 
 
 def escape_table(text: str) -> str:
