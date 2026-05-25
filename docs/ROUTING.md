@@ -47,6 +47,17 @@ When adding a new skill:
 
 1. Run intake.
 2. Decide whether it is a default winner, explicit-only skill, fallback, duplicate, or rejected skill.
-3. Add one concise rule to `_skill-router/SKILL.md`.
-4. Avoid adding every possible trigger word if a narrower platform route is enough.
-5. Restart Codex if the skill itself was newly installed.
+3. Apply accepted intake decisions with `skill-intake/scripts/apply_intake_decision.py`.
+4. Add hand-authored permanent policy outside the managed block when a rule is important enough to become a fixed default.
+5. Avoid adding every possible trigger word if a narrower platform route is enough.
+6. Restart Codex if the skill itself was newly installed or the router was updated.
+
+The managed block is bounded by:
+
+```markdown
+<!-- skill-router-managed:start -->
+...
+<!-- skill-router-managed:end -->
+```
+
+Automation should only edit inside those markers.

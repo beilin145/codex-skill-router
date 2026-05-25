@@ -205,6 +205,34 @@ Do not route to these by default:
 - Duplicate HyperFrames adapter skills installed in multiple roots. Load only one matching copy.
 - Skill generators that are covered by `skill-creator` plus skill writing guidance.
 
+<!-- skill-router-managed:start -->
+## Managed Skill Intake Decisions
+
+This section is maintained by `skill-intake/scripts/apply_intake_decision.py`.
+Manual edits inside the markers may be overwritten; edit the fixed router rules outside this block for permanent policy.
+
+### Default Routes
+
+- None recorded.
+
+### Explicit Only
+
+- None recorded.
+
+### Demoted or Duplicate
+
+- None recorded.
+
+### Rejected or Quarantined
+
+- None recorded.
+
+### Manual Review
+
+- None recorded.
+
+<!-- skill-router-managed:end -->
+
 ## Final Tie Breakers
 
 - Prefer platform-specific skills over generic skills when the platform is explicit.

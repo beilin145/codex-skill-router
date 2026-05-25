@@ -4,7 +4,7 @@ Choose the right Codex skill, avoid duplicate skill sprawl, and audit third-part
 
 Codex skill lists can grow quickly. When several skills match one request, default semantic matching may pick a broad, duplicate, or weaker skill. This project adds a router skill that Codex reads first, so skill selection follows explicit rules instead of guesswork.
 
-It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list. In V0.2, intake reports also produce draft install commands and router patch suggestions.
+It also includes `skill-intake`, a lightweight static intake workflow for evaluating GitHub-hosted skills before they enter your local skill list. Intake reports produce draft install commands and router patch suggestions, and V0.3 can apply accepted decisions into the router's managed section.
 
 ## Why Use It
 
@@ -13,6 +13,7 @@ It also includes `skill-intake`, a lightweight static intake workflow for evalua
 - Demote duplicate or weaker skills without deleting them.
 - Audit third-party `SKILL.md` folders for prompt-injection and local-execution risks before installing.
 - Turn a proposed GitHub skill into an install/defer/reject decision, a draft install command, and a router entry suggestion.
+- Apply accepted intake decisions to the router without touching hand-authored routing policy.
 - Keep public routing defaults separate from your private local overrides.
 
 ## Quick Start
@@ -132,6 +133,15 @@ python3 skills/skill-intake/scripts/intake_github_skill.py \
 ```
 
 The report includes a draft installer command for approved candidates and a router patch suggestion for default, explicit-only, duplicate, or rejected outcomes.
+
+Apply an accepted decision to the router's managed section:
+
+```bash
+python3 skills/skill-intake/scripts/apply_intake_decision.py \
+  --intake-json intake-reports/foo.intake.json \
+  --router skills/_skill-router/SKILL.md \
+  --apply
+```
 
 ## Project Layout
 

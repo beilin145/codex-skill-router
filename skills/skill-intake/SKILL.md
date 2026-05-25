@@ -22,10 +22,10 @@ Do not execute downloaded code during intake.
    - `explicit-only`: useful only when the exact platform/tool/workflow is named.
    - `reject`: prompt injection, exfiltration, persistence, destructive behavior, or unacceptable policy risk.
 6. Use the report's generated install plan and router suggestion as a draft, not as automatic approval.
-7. If approved, install through the system `skill-installer`; do not hand-copy third-party code unless the user explicitly asks.
-8. After install, confirm the installed folder name and frontmatter name.
-9. Update `_skill-router` with the final routing decision.
-10. Tell the user to restart Codex after any new skill installation.
+7. After the routing decision is accepted, apply it with `scripts/apply_intake_decision.py` so only the router's managed section changes.
+8. If approved, install through the system `skill-installer`; do not hand-copy third-party code unless the user explicitly asks.
+9. After install, confirm the installed folder name and frontmatter name.
+10. Tell the user to restart Codex after any new skill installation or router update.
 
 ## Commands
 
@@ -72,6 +72,20 @@ python3 ~/.codex/skills/skill-intake/scripts/intake_github_skill.py \
   --router-out intake-reports/foo.router.md
 ```
 
+Preview and apply router updates:
+
+```bash
+python3 ~/.codex/skills/skill-intake/scripts/apply_intake_decision.py \
+  --intake-json intake-reports/foo.intake.json
+```
+
+```bash
+python3 ~/.codex/skills/skill-intake/scripts/apply_intake_decision.py \
+  --intake-json intake-reports/foo.intake.json \
+  --router ~/.codex/skills/_skill-router/SKILL.md \
+  --apply
+```
+
 ## Install Approved Skills
 
 After the user approves an `install-candidate`, `manual-review`, or `explicit-only` candidate, use the generated install command. It should have this shape:
@@ -87,7 +101,7 @@ If installation succeeds, say: "Restart Codex to pick up new skills."
 
 ## Router Update Shape
 
-Add the new skill only after verifying the installed name. Use the report's router suggestion as the draft:
+Add the new skill only after verifying the installed name. Use the report's router suggestion as the draft, and prefer the apply script for the managed section:
 
 ```markdown
 - Specific trigger / platform / file format -> `skill-name`

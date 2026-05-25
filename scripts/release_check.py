@@ -41,6 +41,7 @@ REQUIRED_FILES = [
     "skills/_skill-router/agents/openai.yaml",
     "skills/skill-intake/SKILL.md",
     "skills/skill-intake/agents/openai.yaml",
+    "skills/skill-intake/scripts/apply_intake_decision.py",
     "skills/skill-intake/scripts/intake_github_skill.py",
 ]
 
